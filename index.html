@@ -1904,13 +1904,49 @@ async function ensurePushSubscribed(){
   return true;
 }
 
+/* ---------------- Apple Pay: pick a category for a payment the server did not recognise ---------------- */
+const VIEW_ONLY_COPY = location.hostname.endsWith('github.io');
+function openCategorizePicker(expId){
+  const pending = (DATA.expenses||[]).filter(e=>e.pending_category);
+  const e = pending.find(x=>x.id===expId) || pending[0];
+  if(!e) return;
+  const cats = DATA.settings.categories;
+  openSheet(`
+    <h2>Which category?</h2>
+    <div style="margin:-8px 0 14px;color:var(--text2);font-size:14px;">${escapeHtml(e.merchant||'Payment')} · ${fmt(e.amount)} · ${shortDate(e.date)}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      ${cats.map(c=>`<button class="btn" data-pick-cat="${c.id}" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px 8px;font-size:16px;">
+        ${icon(CAT_ICON[c.icon]||'other',26,c.color)}<span>${escapeHtml(c.name)}</span></button>`).join('')}
+    </div>
+    <button class="btn" id="pick-skip" style="width:100%;margin-top:12px;color:var(--text2);">Keep as Other for now</button>
+  `);
+  const done = async(body, msg)=>{
+    await api('POST',`/api/expenses/${e.id}/categorize`, body);
+    closeSheet(); await refresh(); showToast(msg);
+    if((DATA.expenses||[]).some(x=>x.pending_category)) setTimeout(()=>openCategorizePicker(), 400);
+  };
+  sheetBody.querySelectorAll('[data-pick-cat]').forEach(b=>b.onclick=()=>done({category:b.dataset.pickCat}, `Saved under ${catById(b.dataset.pickCat).name}`));
+  sheetBody.querySelector('#pick-skip').onclick=()=>done({skip:true}, 'Kept under Other');
+}
+function maybeOpenCategorizePicker(expId){
+  if(VIEW_ONLY_COPY || backdrop.classList.contains('open')) return;
+  if((DATA.expenses||[]).some(x=>x.pending_category)) openCategorizePicker(expId);
+}
+document.addEventListener('visibilitychange', async()=>{
+  if(document.visibilityState!=='visible' || VIEW_ONLY_COPY) return;
+  await loadData(); maybeOpenCategorizePicker();
+});
+
 /* ---------------- init ---------------- */
 (async function init(){
   await loadData();
   renderHeader();
   if('serviceWorker' in navigator) navigator.serviceWorker.register('sw-disabled.js').catch(()=>{});
-  const qtab = new URLSearchParams(location.search).get('tab');
+  const params = new URLSearchParams(location.search);
+  const qtab = params.get('tab');
   if(qtab && document.getElementById('view-'+qtab)) switchTab(qtab); else renderCurrentTab();
+  maybeOpenCategorizePicker(params.get('categorize'));
+  if(params.get('categorize')) history.replaceState(null,'',location.pathname);
 })();
 </script>
 </body>
