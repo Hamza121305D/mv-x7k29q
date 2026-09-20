@@ -621,12 +621,23 @@ function donutSvg(totals, total, size=104, stroke=17){
   </svg>`;
 }
 
+/* Money put into savings goals that month (removals count negative). A goal's opening balance, the part
+   never logged as a dated contribution, belongs to the month the goal was created. */
+function goalSavedInMonth(key){
+  return (DATA.savings_goals||[]).reduce((t,g)=>{
+    const logged = g.contributions||[];
+    let s = logged.filter(c=>(c.date||'').slice(0,7)===key).reduce((a,c)=>a+(c.amount||0),0);
+    if((g.created_at||'').slice(0,7)===key) s += (g.current||0) - logged.reduce((a,c)=>a+(c.amount||0),0);
+    return t+s;
+  },0);
+}
+
 /* ---------------- HOME ---------------- */
 function renderHome(){
   const el = document.getElementById('view-home');
   const inc = sum(monthIncome());
   const exp = sum(monthExpenses());
-  const net = inc - exp;
+  const net = inc - exp - goalSavedInMonth(monthKey(selMonth));
   const prevInc = sum(prevMonthIncome());
   const prevExp = sum(prevMonthExpenses());
   const incDelta = pctChange(inc, prevInc);
@@ -1125,13 +1136,13 @@ function renderAnalytics(){
     const key = monthKey(m);
     const inc = sum(DATA.income.filter(i=>(i.date||'').slice(0,7)===key));
     const exp = sum(DATA.expenses.filter(e=>(e.date||'').slice(0,7)===key));
-    return {m, inc, exp};
+    return {m, inc, exp, sav: goalSavedInMonth(key)};
   });
   const periodExpenses = DATA.expenses.filter(e=>inKeys.has((e.date||'').slice(0,7)));
   const periodIncome = DATA.income.filter(i=>inKeys.has((i.date||'').slice(0,7)));
   const prevExpenses = DATA.expenses.filter(e=>prevKeys.has((e.date||'').slice(0,7)));
   const totals = categoryTotals(periodExpenses), prevTotals = categoryTotals(prevExpenses);
-  const totalSpent = sum(periodExpenses), totalIncome = sum(periodIncome), net = totalIncome - totalSpent;
+  const totalSpent = sum(periodExpenses), totalIncome = sum(periodIncome), net = totalIncome - totalSpent - monthData.reduce((a,d)=>a+d.sav,0);
   const savingsRate = totalIncome>0 ? Math.round(net/totalIncome*100) : null;
   const maxBar = Math.max(1, ...monthData.flatMap(d=>[d.inc,d.exp]));
 
@@ -1206,7 +1217,7 @@ function renderAnalytics(){
             <div class="bar" style="height:${(d.inc/maxBar)*100}%;background:var(--positive)"></div>
             <div class="bar" style="height:${(d.exp/maxBar)*100}%;background:var(--negative)"></div>
           </div>
-          <div class="bar-label">${MONTH_NAMES[d.m.getMonth()].slice(0,3)}${nMonths<=6 ? `<span class="bar-net" style="color:${d.inc-d.exp>=0?'var(--positive)':'var(--negative)'}">${money(d.inc-d.exp,true)}</span>` : ''}</div>
+          <div class="bar-label">${MONTH_NAMES[d.m.getMonth()].slice(0,3)}${nMonths<=6 ? `<span class="bar-net" style="color:${d.inc-d.exp-d.sav>=0?'var(--positive)':'var(--negative)'}">${money(d.inc-d.exp-d.sav,true)}</span>` : ''}</div>
         </div>`).join('')}</div>
       <div class="bars-detail" id="bars-detail"></div>
       <div class="chart-note">Tap a month to see its numbers.</div>
@@ -1277,7 +1288,7 @@ function renderAnalytics(){
   const showBar = k=>{
     const d = monthData[k];
     el.querySelectorAll('[data-bar]').forEach(x=>x.classList.toggle('sel', +x.dataset.bar===k));
-    detail.innerHTML = `<b style="color:var(--text)">${MONTH_NAMES[d.m.getMonth()]} ${d.m.getFullYear()}</b><span>Income <b style="color:var(--positive)">${fmt(d.inc)}</b></span><span>Spent <b style="color:var(--negative)">${fmt(d.exp)}</b></span><span>Net <b style="color:${d.inc-d.exp>=0?'var(--positive)':'var(--negative)'}">${money(d.inc-d.exp,true)}</b></span>`;
+    detail.innerHTML = `<b style="color:var(--text)">${MONTH_NAMES[d.m.getMonth()]} ${d.m.getFullYear()}</b><span>Income <b style="color:var(--positive)">${fmt(d.inc)}</b></span><span>Spent <b style="color:var(--negative)">${fmt(d.exp)}</b></span><span>Net <b style="color:${d.inc-d.exp-d.sav>=0?'var(--positive)':'var(--negative)'}">${money(d.inc-d.exp-d.sav,true)}</b></span>`;
   };
   el.querySelectorAll('[data-bar]').forEach(x=>x.onclick=()=>showBar(+x.dataset.bar));
   showBar(monthData.length-1);
