@@ -761,7 +761,7 @@ function billRow(b){
 }
 function merchantBadge(merchant, kind, category, iconSrc){
   const m = (merchant||'').toLowerCase();
-  if(!iconSrc && kind!=='income') iconSrc = brandIcon(merchant);
+  if(!iconSrc) iconSrc = brandIcon(merchant);
   if(iconSrc) return `<div class="row-badge" style="padding:0;overflow:hidden;background:none"><img src="${iconSrc}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>`;
   const known = {
     starbucks:{bg:'#0C3B2E',fg:'#1DB477',letter:'S'},
