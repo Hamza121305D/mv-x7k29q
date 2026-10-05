@@ -841,8 +841,13 @@ function renderTransactions(){
   else if(txFilter==='income') list = list.filter(t=>t.kind==='income');
   else if(txFilter==='bills') list = list.filter(t=>t.kind==='bill');
   if(txSearch.trim()){
-    const q = txSearch.toLowerCase();
-    list = list.filter(t=>(t.merchant||t.source||t.name||'').toLowerCase().includes(q));
+    const q = txSearch.trim().toLowerCase();
+    const qNum = /^\d+(\.\d+)?$/.test(q) ? Number(q) : null;
+    list = list.filter(t=>{
+      const textMatch = (t.merchant||t.source||t.name||'').toLowerCase().includes(q);
+      const amountMatch = qNum!==null && Math.abs(t.amount||0).toFixed(2)===qNum.toFixed(2);
+      return textMatch || amountMatch;
+    });
   }
   if(txAdv.min!=='') list = list.filter(t=>Math.abs(t.amount||0) >= +txAdv.min);
   if(txAdv.max!=='') list = list.filter(t=>Math.abs(t.amount||0) <= +txAdv.max);
